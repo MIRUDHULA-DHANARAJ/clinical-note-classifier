@@ -1,16 +1,5 @@
-fastapi
-uvicorn
-pydantic
-streamlit
-requests
-pandas
-numpy
-scikit-learn
-xgboost
-matplotlib
-seaborn
 streamlit==1.35.0
-torch==2.3.1 --index-url https://pytorch.org
+torch==2.3.1
 transformers==4.41.2
 plotly==5.22.0
 numpy==1.26.4
