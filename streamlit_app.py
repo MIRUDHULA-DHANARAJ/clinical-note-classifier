@@ -10,9 +10,10 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 # ----------------------------------------------------------------------------
 # LOCAL MODEL CONFIGURATION
 # ----------------------------------------------------------------------------
-MODEL_DIR = "miru05/clinical-note-bioclinicalbert"
-ENCODER_PATH = "./models/transformer_label_encoder.pkl"
 
+MODEL_DIR = "EmilyALSENTZER/Bio_ClinicalBERT"
+
+ENCODER_PATH = "./models/transformer_label_encoder.pkl"
 
 @st.cache_resource
 def load_deep_learning_pipeline():
