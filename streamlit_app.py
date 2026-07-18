@@ -10,7 +10,7 @@ from transformers import AutoTokenizer, AutoModelForSequenceClassification
 # ----------------------------------------------------------------------------
 # LOCAL MODEL CONFIGURATION
 # ----------------------------------------------------------------------------
-MODEL_DIR = "./models/bioclinicalbert_pipeline"
+MODEL_DIR = "miru05/clinical-note-bioclinicalbert"
 ENCODER_PATH = "./models/transformer_label_encoder.pkl"
 
 

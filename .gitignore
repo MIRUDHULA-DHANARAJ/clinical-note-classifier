@@ -6,3 +6,4 @@ models/
 transformer_results/
 checkpoint-*/
 data/raw/mtsamples.csv
+models/bioclinicalbert_pipeline/
