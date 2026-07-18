@@ -1,0 +1,8 @@
+venv/
+.venv/
+__pycache__/
+*.pyc
+models/
+transformer_results/
+checkpoint-*/
+data/raw/mtsamples.csv
