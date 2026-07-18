@@ -6,6 +6,9 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
+MODEL_DIR = "./models/bioclinicalbert_pipeline"
+ENCODER_PATH = "./models/transformer_label_encoder.pkl"
+
 app = FastAPI(
     title="Omega Clinical Route Core Engine",
     description="Automated Transformer pipeline for hospital intake workflows."
