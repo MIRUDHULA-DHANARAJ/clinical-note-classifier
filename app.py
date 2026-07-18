@@ -15,13 +15,16 @@ MODEL_DIR = "EmilyALSENTZER/Bio_ClinicalBERT"
 
 ENCODER_PATH = "./models/transformer_label_encoder.pkl"
 
+
 @st.cache_resource
 def load_deep_learning_pipeline():
-    """Load tokenizer, model, and label encoder from local disk (no internet call)."""
-    if not os.path.exists(MODEL_DIR) or not os.path.exists(ENCODER_PATH):
+    """Load tokenizer, model from HF Hub and label encoder from local disk."""
+   
+    if not os.path.exists(ENCODER_PATH):
         return None, None, None, "missing_files"
 
     try:
+        # Hugging Face safely downloads these into memory from the cloud repo string!
         tokenizer = AutoTokenizer.from_pretrained(MODEL_DIR)
         model = AutoModelForSequenceClassification.from_pretrained(MODEL_DIR)
 
