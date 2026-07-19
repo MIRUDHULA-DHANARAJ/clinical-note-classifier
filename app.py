@@ -7,11 +7,11 @@ from collections import Counter
 from datetime import datetime
 from transformers import AutoTokenizer, AutoModelForSequenceClassification
 
-# ----------------------------------------------------------------------------
-# LOCAL MODEL CONFIGURATION
-# ----------------------------------------------------------------------------
 
-MODEL_DIR = "EmilyALSENTZER/Bio_ClinicalBERT"
+# ----------------------------------------------------------------------------
+# GLOBAL PRODUCTION MODEL CONFIGURATION
+# ----------------------------------------------------------------------------
+MODEL_DIR = "miru05/clinical-note-bioclinicalbert"
 
 ENCODER_PATH = "./models/transformer_label_encoder.pkl"
 
