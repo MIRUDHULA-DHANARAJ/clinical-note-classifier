@@ -146,7 +146,7 @@ clinical-note-classifier/
 
 ```bash
 # 1. Clone the repository
-git clone <repo-url>
+git clone https://github.com/MIRUDHULA-DHANARAJ/clinical-note-classifier
 cd clinical-note-classifier
 
 # 2. Install dependencies
