@@ -1,116 +1,190 @@
-# 🩺 Multi-Class Clinical Note Specialty Classifier
+# 🏥 Clinical Intake & Automated Specialty Routing System
 
-An end-to-end, production-grade Natural Language Processing (NLP) system built to automatically classify messy, raw medical transcriptions and route them to their proper clinical departments.
-
-The core system architecture features a decoupled, multi-service pipeline running locally on a dedicated Python virtual environment (`venv`) to preserve system resources. It consists of an asynchronous **FastAPI backend engine** serving real-time inferences from a cached, validated machine learning model to a highly responsive **Streamlit client user dashboard**.
+An end-to-end NLP pipeline that classifies unstructured physician transcriptions into medical specialty queues, enabling automated clinical document routing. Built on the MTSamples dataset, benchmarked across linear, gradient-boosted, and transformer-based architectures, and deployed as an interactive Streamlit dashboard.
 
 ---
 
-## 📊 Experimental Evaluation Scorecard
+## 📌 Overview
 
-During the development phase, multiple machine learning models were built, manually adjusted for class imbalance, and cross-evaluated using the exact same stratified test matrix [Phase 7, 9, 10].
+Hospitals and healthcare operations teams routinely process large volumes of unstructured clinical text — physician dictations, triage notes, and chart summaries — that must be manually routed to the correct specialty department. This project automates that routing decision using NLP and machine learning, reducing manual triage overhead and operational delay.
 
-| Model Architecture | Features / Inputs | Class Balancing Strategy | Overall Accuracy | Macro F1-Score | Status & Verdict |
-|---|---|---|:---:|:---:|---|
-| **Logistic Regression** | 5,000-Dim TF-IDF Vectors | Built-in `class_weight='balanced'` | **41.54%** | **0.40** | 🎉 **Winner: Deployed to Production** |
-| **XGBoost Classifier** | 5,000-Dim TF-IDF Vectors | Manual `compute_sample_weight()` | 28.75% | 0.22 | ❌ Rejected: Overfitted on feature sparsity |
-| **PyTorch LSTM Network** | Padded Token Sequences | Unweighted Cross-Entropy Loss | 29.57% | 0.08 | ❌ Rejected: Majority class collapse |
+The system classifies clinical notes into one of five specialty categories:
 
----
-
-## 🧠 Core Engineering & Architectural Takeaways
-
-Hiring managers reviewing this repository should note the specific data-driven trade-offs made during model selection:
-
-1. **The Sparsity Trap (Why Logistic Regression Won):** The text feature extraction process utilizes a `TfidfVectorizer` capped at 5,000 features, generating highly sparse arrays (where over 99% of matrix cells are zero). Tree-based models like XGBoost struggle intensely in sparse, high-dimensional spaces because they attempt to split data along single feature axes at a time, leading to severe overfitting. Conversely, **Logistic Regression** calculates global linear weights across all words simultaneously, making it mathematically superior for sparse text inputs.
-
-2. **Mitigating Majority Class Collapse (LSTM Failure):** Deep learning sequential models (like LSTMs) are incredibly data-hungry. On a highly skewed, low-volume text corpus (fewer than 3,000 total training samples), the LSTM failed to learn language context. To lower its global cross-entropy loss quickly, the neural network took a shortcut and collapsed into a majority-class predictor — guessing the largest class (*Surgery*) for almost everything, resulting in a poor **0.08 Macro F1-score**.
-
-3. **Data Leakage Elimination:** To prevent look-ahead bias, structural feature matrices were carefully managed. The text vectorizer and the label encoder were strictly fitted *only* on the training data (`fit_transform`) and subsequently used to project the test data (`transform`), ensuring pristine validation integrity [Phase 6, 7].
-
-4. **Class Imbalance Optimization:** Relying strictly on global accuracy is a deceptive antipattern for skewed clinical datasets; a model can guess the majority class endlessly to maintain a high accuracy score while remaining completely blind to minority classes (like *Urology*). This pipeline explicitly optimizes for **Macro F1-score**, ensuring every clinical department is treated with equal weight during evaluation.
+- Cardiovascular / Pulmonary
+- Orthopedic
+- Radiology
+- Neurology
+- Gastroenterology
 
 ---
 
-## 🛠️ Data Pipeline & Cleaning Engine
-
-The raw clinical dictations (`data/raw/mtsamples.csv`) contain extreme textual noise, formatting variations, and structural inconsistencies [Phase 2, 3]. A robust preprocessing script (`notebooks/02_Preprocessing.ipynb`) passes strings through an immutable pipeline [Phase 4]:
+## 🗺️ Pipeline Architecture
 
 ```
-[Raw Note] ──> Lowercase ──> Regex Alpha Filter ([^a-zA-Z\s]) ──> Stopword Strip ──> WordNet Lemmatization ──> [Clean Text]
+Raw MTSamples Data
+        │
+        ▼
+Step 1 — Data Cleaning & Class Isolation
+        │
+        ▼
+Step 2 — Text Normalization & Lemmatization
+        │
+        ▼
+Step 3 — Baseline Model (TF-IDF + Logistic Regression)
+        │
+        ▼
+Step 4 — Gradient-Boosted Model (XGBoost)
+        │
+        ▼
+Step 4.6 — Fine-Tuned Transformer (BioClinicalBERT)
+        │
+        ▼
+Deployment — Streamlit Dashboard (Hugging Face Hub model)
 ```
-
-- **Lemmatization:** Reduces varying words (like *headaches, headaching*) to their baseline root form (*headache*), grouping linguistic indicators into unified feature signals.
-- **Label Engineering:** Rare specialties with fewer than 10 total notes were eliminated via a **Top 10 Thresholding Strategy**, ensuring the models had sufficient sample sizes to converge [Phase 5].
 
 ---
 
-## ⚡ Production Serving Infrastructure
+## 🔍 Problem Statement
 
-The validated model components are serialized directly to disk as portable weights inside the `models/` directory using Python `pickle` [Phase 11].
-
-```
-[Streamlit UI]  ───── HTTP POST [JSON text] ─────>   [FastAPI Backend Engine]
-   (Port 8501)   <──── HTTP 200 [JSON Response] ────      (Port 8000, Memory Cache)
-```
-
-- **Backend Microservice (`app/main.py`):** Powered by an asynchronous FastAPI framework [Phase 12]. To eliminate severe disk I/O latency bottlenecks, a dedicated `@app.on_event("startup")` trigger unpacks and caches the heavy model arrays and text vectorizers **exactly once into RAM memory** when the application boots up. Real-time inference calls bypass disk lookups entirely, ensuring rapid routing responses.
-- **Executive Client UI (`streamlit_app.py`):** Features a cohesive, single-page layout designed for non-technical users [Phase 13]. It contains a transcript intake area at the top, a prominent headline prediction block presenting the routing target alongside top-5 probability distribution graphs, and comparative engineering charts at the base to substantiate deployment decisions.
+Raw clinical text contains heavily overlapping vocabulary across departments — administrative terms like *"patient"* or *"incision"* appear regardless of specialty, which weakens naive statistical classifiers. Early iterations of this project also revealed a deeper issue: two of the largest labels in the raw dataset, **Surgery** and **Consult**, describe *document types* rather than *physiological specialties*, causing severe class overlap and capping initial accuracy at ~41%.
 
 ---
 
-## 💻 Local Setup & Operational Instructions
+## 🛠️ What This Project Does
 
-To spin up this multi-service pipeline on your local architecture without risking storage exhaustion, execute these steps inside a fresh command prompt terminal:
-
-### 1. Environment Initialization & Dependency Load
-
-```bash
-# Clone the repository
-git clone https://github.com/<your-username>/clinical-note-classifier.git
-cd clinical-note-classifier
-
-# Set up and activate a standard local virtual environment
-python -m venv env
-.\env\Scripts\activate   # On Mac/Linux use: source env/bin/activate
-
-# Install lightweight operational dependencies
-pip install -r requirements.txt
-```
-
-### 2. Launch the FastAPI Backend Microservice
-
-```bash
-uvicorn app.main:app --reload
-```
-
-The backend server initializes on port `8000`. You can interact with the live automated Swagger documentation interface by visiting `http://localhost:8000/docs`.
-
-### 3. Launch the Streamlit User Interface Dashboard
-
-Open a secondary terminal tab, activate the virtual environment, and start the frontend script:
-
-```bash
-streamlit run streamlit_app.py
-```
-
-The application will automatically open in your browser.
+| Stage | Script | Purpose |
+|---|---|---|
+| 1 | `step_1_cleaning.py` | Strips whitespace from labels, drops missing transcriptions, isolates 5 pure specialty classes, removes short/low-signal notes (< 20 words) |
+| 2 | `step_2_preprocessing.py` | Lowercases text, strips non-alphabetic characters, removes stopwords, applies WordNet lemmatization |
+| 3 | `step_3_baseline.py` | Trains a `TfidfVectorizer` (bi-gram, 4,000 features) + class-weighted Logistic Regression baseline |
+| 4 | `step_4_xgboost.py` | Trains a regularized, shallow-tree XGBoost classifier on the same TF-IDF features |
+| 4.6 | `step_4_6_transformer.py` | Fine-tunes `Bio_ClinicalBERT` (domain-pretrained transformer) for sequence classification |
+| — | `app.py` | Streamlit dashboard serving the production model with confidence scoring and human-in-the-loop review routing |
 
 ---
 
-## 📁 Project Structure
+## 🚨 Key Engineering Challenges & Fixes
+
+### 1. Class Contamination (41% Accuracy Ceiling)
+**Problem:** `Surgery` and `Consult` labels represented administrative document types, not physiological departments, causing massive vocabulary crossover between unrelated specialties.
+**Fix:** Removed both classes at the data layer; isolated 5 non-overlapping physiological categories and dropped sub-20-word notes.
+
+### 2. Transformer Overfitting / Prediction Collapse
+**Problem:** Initial resource-constrained fine-tuning (batch size 4, single epoch, CPU-only) caused the model to collapse to a single constant prediction.
+**Fix:** Adjusted training configuration (learning rate, weight decay, evaluation strategy) and validated per-epoch loss to ensure stable convergence before promoting the transformer to production.
+
+### 3. Label Index Drift
+**Problem:** Untrimmed whitespace in raw specialty labels (e.g. `" Cardiovascular / Pulmonary"`) shifted alphabetical label-encoder ordering, misaligning predicted indices with displayed specialty names.
+**Fix:** Enforced `.str.strip()` on the label column at the earliest cleaning stage (Step 1), so the fix is applied once at the source rather than patched downstream in the application layer.
+
+---
+
+## 🧠 Model Comparison & Trade-offs
+
+| Model | Accuracy | Strengths | Limitations |
+|---|---|---|---|
+| Logistic Regression (TF-IDF, bi-gram, balanced) | 65.26% | Sub-millisecond inference, minimal footprint, stable on sparse features | Cannot capture non-linear contextual relationships |
+| XGBoost (regularized, shallow trees) | 61.05% | Models non-linear feature interactions | Degrades on very high-dimensional sparse TF-IDF matrices |
+| Fine-tuned BioClinicalBERT | **76.84%** | Domain-pretrained contextual embeddings, captures long-range semantic relationships | Higher compute cost, longer inference latency, requires more careful training configuration |
+
+**Production model:** `BioClinicalBERT`, fine-tuned and hosted on the Hugging Face Hub, selected for its superior accuracy on unstructured clinical language once a stable training configuration was established.
+
+---
+
+## 📈 How Accuracy Was Improved
+
+1. **Semantic Isolation** — removed administrative document-type labels contaminating the target classes.
+2. **Bi-gram Feature Engineering** — `ngram_range=(1,2)` allows models to capture clinically meaningful phrases (e.g. *"chest pain"*, *"joint line"*) rather than isolated tokens.
+3. **Class Balancing** — `class_weight='balanced'` in Logistic Regression prevents minority specialty classes from being under-predicted.
+4. **Domain-Pretrained Transfer Learning** — fine-tuning BioClinicalBERT (pretrained on clinical corpora) rather than a general-purpose transformer gave a substantial accuracy lift over TF-IDF-based models.
+
+---
+
+## 🖥️ Deployment
+
+The production model is served through a Streamlit dashboard (`app.py`) that:
+
+- Loads the fine-tuned BioClinicalBERT model and tokenizer directly from the Hugging Face Hub
+- Runs local inference on submitted clinical text
+- Displays the predicted specialty with a confidence score
+- Applies a configurable **Human-in-the-Loop Safety Threshold** — any prediction below the threshold is automatically flagged for manual review rather than auto-routed
+- Tracks session-level routing analytics (specialty distribution, average confidence)
+
+---
+
+## 📂 Project Structure
 
 ```
 clinical-note-classifier/
-├── app/
-│   └── main.py                  # FastAPI backend engine
 ├── data/
-│   └── raw/
-│       └── mtsamples.csv        # Raw clinical dictations
-├── models/                      # Serialized model weights (pickle)
-├── notebooks/
-│   └── 02_Preprocessing.ipynb   # Data cleaning pipeline
-├── streamlit_app.py             # Streamlit dashboard
+│   ├── raw/
+│   │   └── mtsamples.csv
+│   └── processed/
+│       ├── 01_sliced_specialties.csv
+│       └── 02_preprocessed_text.csv
+├── models/
+│   ├── tfidf_vectorizer.pkl
+│   ├── logistic_regression_model.pkl
+│   ├── xgboost_model.pkl
+│   ├── label_encoder.pkl
+│   ├── transformer_label_encoder.pkl
+│   └── bioclinicalbert_pipeline/
+├── src/
+│   ├── step_1_cleaning.py
+│   ├── step_2_preprocessing.py
+│   ├── step_3_baseline.py
+│   ├── step_4_xgboost.py
+│   └── step_4_6_transformer.py
+├── app.py
 ├── requirements.txt
 └── README.md
 ```
+
+---
+
+## ⚙️ Setup & Usage
+
+```bash
+# 1. Clone the repository
+git clone <repo-url>
+cd clinical-note-classifier
+
+# 2. Install dependencies
+pip install -r requirements.txt
+
+# 3. Run the pipeline (from src/)
+python step_1_cleaning.py
+python step_2_preprocessing.py
+python step_3_baseline.py
+python step_4_xgboost.py
+python step_4_6_transformer.py
+
+# 4. Launch the dashboard
+streamlit run app.py
+```
+
+---
+
+## 🧰 Tech Stack
+
+- **Language:** Python
+- **NLP:** NLTK (stopwords, lemmatization), Hugging Face Transformers
+- **Modeling:** scikit-learn (Logistic Regression, TF-IDF), XGBoost, PyTorch, Bio_ClinicalBERT
+- **Deployment:** Streamlit, Hugging Face Hub (model hosting)
+- **Visualization:** Plotly
+
+---
+
+## 🔮 Future Improvements
+
+- Expand training data volume to further stabilize transformer fine-tuning
+- Add batch/bulk note upload support to the dashboard
+- Introduce model explainability (e.g. attention visualization or SHAP) for clinician trust
+- Extend specialty coverage beyond the current 5 categories
+- Add automated retraining pipeline as new labeled data becomes available
+
+---
+
+## 📄 License
+
+This project is intended for educational and portfolio demonstration purposes.
